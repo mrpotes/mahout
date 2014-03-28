@@ -221,13 +221,23 @@ done
 
 # run it
 
-HADOOP_BINARY=$(PATH="${HADOOP_HOME:-${HADOOP_PREFIX}}/bin:$PATH" which hadoop 2>/dev/null)
-if [ -x "$HADOOP_BINARY" ] ; then
-  HADOOP_BINARY_CLASSPATH=$("$HADOOP_BINARY" classpath)
+HADOOP_USABLE=false
+if $cygwin; then
+  HADOOP_BINARY=$(cygpath $(PATH="`cygpath ${HADOOP_HOME:-${HADOOP_PREFIX}}`/bin:$PATH" where hadoop.cmd 2>/dev/null | dos2unix))
+  if [ -f "$HADOOP_BINARY" ]; then
+    HADOOP_USABLE=true
+    HADOOP_CLASSPATH=$("$HADOOP_BINARY" classpath | dos2unix)
+  fi
+else
+  HADOOP_BINARY=$(PATH="${HADOOP_HOME:-${HADOOP_PREFIX}}/bin:$PATH" which hadoop 2>/dev/null)
+  if [ -x "$HADOOP_BINARY" ]; then
+    HADOOP_USABLE=true
+    HADOOP_CLASSPATH=$("$HADOOP_BINARY" classpath)
+  fi
 fi
 
-if [ ! -x "$HADOOP_BINARY" ] || [ "$MAHOUT_LOCAL" != "" ] ; then
-  if [ ! -x "$HADOOP_BINARY" ] ; then
+if [ ! $HADOOP_USABLE ] || [ "$MAHOUT_LOCAL" != "" ] ; then
+  if [ ! $HADOOP_USABLE ] ; then
     echo "hadoop binary is not in PATH,HADOOP_HOME/bin,HADOOP_PREFIX/bin, running locally"
   elif [ "$MAHOUT_LOCAL" != "" ] ; then
     echo "MAHOUT_LOCAL is set, running locally"
@@ -257,8 +267,13 @@ else
       echo $CLASSPATH
       ;;
     (*)
+      if $cygwin; then
+        MAHOUT_JOB=`cygpath -w "$MAHOUT_JOB"`
+	export HADOOP_CLASSPATH="$(cygpath -w $MAHOUT_CONF_DIR);${HADOOP_CLASSPATH}"
+      else
+        export HADOOP_CLASSPATH=$MAHOUT_CONF_DIR:${HADOOP_CLASSPATH}
+      fi
       echo "MAHOUT-JOB: $MAHOUT_JOB"
-      export HADOOP_CLASSPATH=$MAHOUT_CONF_DIR:${HADOOP_CLASSPATH}
       exec "$HADOOP_BINARY" jar $MAHOUT_JOB $CLASS "$@"
     esac
   fi
